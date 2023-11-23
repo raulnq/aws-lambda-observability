@@ -41,7 +41,6 @@ Resources:
   RegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Tracing: Active
       Runtime: dotnet6
       Handler: MyAPI::MyAPI.Function::Register
       CodeUri: ./src/MyAPI/
@@ -49,7 +48,6 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName:
               Ref: DynamoTable
-        - AWSXrayWriteOnlyAccess
         - SNSPublishMessagePolicy:
             TopicName: 
               Fn::GetAtt: [ SNSTopic, TopicName ]
@@ -65,12 +63,10 @@ Resources:
   GetTaskFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Tracing: Active
       Runtime: dotnet6
       Handler: MyAPI::MyAPI.Function::Get
       CodeUri: ./src/MyAPI/
       Policies:
-        - AWSXrayWriteOnlyAccess
         - DynamoDBCrudPolicy:
             TableName: 
               Ref: DynamoTable
