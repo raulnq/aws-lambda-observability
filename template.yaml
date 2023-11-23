@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SAM Template
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        TABLE_NAME:
+          Ref: DynamoTable
+        TOPIC_ARN:
+          Ref: SNSTopic
+        URL: "https://animechan.xyz/api/random"
+
+Resources:
+  DynamoTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: id
+        Type: String
+      TableName: mytaskstable
+
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: myapi
+      StageName: Prod
+      TracingEnabled: true
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: mysnstopic
+
+  RegisterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Tracing: Active
+      Runtime: dotnet6
+      Handler: MyAPI::MyAPI.Function::Register
+      CodeUri: ./src/MyAPI/
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Ref: DynamoTable
+        - AWSXrayWriteOnlyAccess
+        - SNSPublishMessagePolicy:
+            TopicName: 
+              Fn::GetAtt: [ SNSTopic, TopicName ]
+      Events:
+        RegisterTask:
+          Type: Api
+          Properties:
+            Path: /tasks
+            Method: post
+            RestApiId:
+              Ref: ApiGatewayApi
+
+  GetTaskFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Tracing: Active
+      Runtime: dotnet6
+      Handler: MyAPI::MyAPI.Function::Get
+      CodeUri: ./src/MyAPI/
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: 
+              Ref: DynamoTable
+      Events:
+        ListTask:
+          Type: Api
+          Properties:
+            Path: /tasks/{id}
+            Method: get
+            RestApiId:
+              Ref: ApiGatewayApi
+
+Outputs:
+  TaskApi:
+    Description: "API Gateway endpoint URL for Prod stage for Tasks function"
+    Value: 
+      Fn::Sub: "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/tasks/"
