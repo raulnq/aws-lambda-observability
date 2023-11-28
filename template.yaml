@@ -15,7 +15,7 @@ Globals:
           Ref: DynamoTable
         TOPIC_ARN:
           Ref: SNSTopic
-        URL: "https://animechan.xyz/api/random"
+        URL: "https://api.namefake.com/"
 
 Resources:
   DynamoTable:
@@ -60,7 +60,7 @@ Resources:
             RestApiId:
               Ref: ApiGatewayApi
 
-  GetTaskFunction:
+  GetFunction:
     Type: AWS::Serverless::Function
     Properties:
       Runtime: dotnet6
@@ -71,7 +71,7 @@ Resources:
             TableName: 
               Ref: DynamoTable
       Events:
-        ListTask:
+        GetTask:
           Type: Api
           Properties:
             Path: /tasks/{id}

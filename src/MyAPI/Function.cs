@@ -5,6 +5,7 @@ using Amazon.Lambda.Core;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
@@ -33,7 +34,9 @@ public class Function
     {
         var request = JsonSerializer.Deserialize<RegisterTaskRequest>(input.Body)!;
 
-        var id = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+
+        var worker = await GetWorker();
 
         var putItemRequest = new PutItemRequest
         {
@@ -42,7 +45,7 @@ public class Function
                     {
                         "id",
                         new AttributeValue {
-                        S = id.ToString(),
+                        S = taskId.ToString(),
                     }
                     },
                     {
@@ -50,22 +53,26 @@ public class Function
                         new AttributeValue {
                         S = request.Description
                         }
+                    },
+                    {
+                        "worker",
+                        new AttributeValue {
+                        S = worker
+                        }
                     }
                 }
         };
 
-        await GetAnime();
-
-        context.Logger.LogInformation("Hello world!!");
+        context.Logger.LogInformation($"Task {taskId} assigned to {worker}");
 
         await _dynamoDBClient.PutItemAsync(putItemRequest);
 
-        var body = JsonSerializer.Serialize(new RegisterTaskResponse(id));
+        var body = JsonSerializer.Serialize(new RegisterTaskResponse(taskId));
 
         var @event = new PublishRequest
         {
             TopicArn = _topicArn,
-            Message = JsonSerializer.Serialize(new TaskRegistered(id, request.Description)),
+            Message = JsonSerializer.Serialize(new TaskRegistered(taskId, request.Description, worker)),
         };
 
         await _snsClient.PublishAsync(@event);
@@ -78,18 +85,27 @@ public class Function
         };
     }
 
-    private async Task GetAnime()
+    private async Task<string> GetWorker()
     {
         var response = await _httpClient.GetAsync(_url);
 
-        var body = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != System.Net.HttpStatusCode.OK)
+        {
+            return "Missing worker";
+        }
+
+        var content = await response.Content.ReadAsStringAsync();
+
+        var payload = JsonSerializer.Deserialize<Payload>(content);
+
+        return payload?.Name ?? "Missing worker";
     }
 
     public record RegisterTaskRequest(string Description);
 
     public record RegisterTaskResponse(Guid Id);
 
-    public record TaskRegistered(Guid Id, string Description);
+    public record TaskRegistered(Guid Id, string Description, string Worker);
 
     public async Task<APIGatewayHttpApiV2ProxyResponse> Get(APIGatewayHttpApiV2ProxyRequest input, ILambdaContext context)
     {
@@ -111,7 +127,7 @@ public class Function
             };
         }
 
-        var body = JsonSerializer.Serialize(new GetTaskResponse(Guid.Parse(response.Item["id"].S), response.Item["description"].S));
+        var body = JsonSerializer.Serialize(new GetTaskResponse(Guid.Parse(response.Item["id"].S), response.Item["description"].S, response.Item["worker"].S));
 
         return new APIGatewayHttpApiV2ProxyResponse
         {
@@ -121,5 +137,11 @@ public class Function
         };
     }
 
-    public record GetTaskResponse(Guid Id, string Description);
+    public record GetTaskResponse(Guid Id, string Description, string Worker);
+
+    public class Payload
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+    }
 }
