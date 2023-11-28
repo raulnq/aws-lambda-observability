@@ -5,14 +5,13 @@ using Amazon.Lambda.Core;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
 
 namespace MyAPI;
 
-public class Function
+public partial class Function
 {
     private readonly AmazonDynamoDBClient _dynamoDBClient;
     private readonly string _tableName;
@@ -101,12 +100,6 @@ public class Function
         return payload?.Name ?? "Missing worker";
     }
 
-    public record RegisterTaskRequest(string Description);
-
-    public record RegisterTaskResponse(Guid Id);
-
-    public record TaskRegistered(Guid Id, string Description, string Worker);
-
     public async Task<APIGatewayHttpApiV2ProxyResponse> Get(APIGatewayHttpApiV2ProxyRequest input, ILambdaContext context)
     {
         var id = input.PathParameters["id"];
@@ -137,11 +130,4 @@ public class Function
         };
     }
 
-    public record GetTaskResponse(Guid Id, string Description, string Worker);
-
-    public class Payload
-    {
-        [JsonPropertyName("name")]
-        public string Name { get; set; }
-    }
 }
