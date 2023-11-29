@@ -4,13 +4,22 @@ Description: >
   SAM Template
 
 Globals:
+  Api:
+    TracingEnabled: true
+
   Function:
     Timeout: 30
     MemorySize: 512
+    Tracing: Active
     Architectures:
       - x86_64
     Environment:
       Variables:
+        POWERTOOLS_SERVICE_NAME: MyApi
+        POWERTOOLS_LOG_LEVEL: Information
+        POWERTOOLS_LOGGER_CASE: CamelCase
+        POWERTOOLS_LOGGER_LOG_EVENT: true
+        POWERTOOLS_METRICS_NAMESPACE: MyApi
         TABLE_NAME:
           Ref: DynamoTable
         TOPIC_ARN:
@@ -31,7 +40,6 @@ Resources:
     Properties:
       Name: myapi
       StageName: Prod
-      TracingEnabled: true
 
   SNSTopic:
     Type: AWS::SNS::Topic

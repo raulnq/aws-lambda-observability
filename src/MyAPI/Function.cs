@@ -4,6 +4,10 @@ using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
+using Amazon.XRay.Recorder.Handlers.System.Net;
+using AWS.Lambda.Powertools.Logging;
+using AWS.Lambda.Powertools.Metrics;
+using AWS.Lambda.Powertools.Tracing;
 using System.Text.Json;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
@@ -21,14 +25,18 @@ public partial class Function
     private readonly string _url;
     public Function()
     {
+        Tracing.RegisterForAllServices();
         _dynamoDBClient = new AmazonDynamoDBClient();
         _tableName = Environment.GetEnvironmentVariable("TABLE_NAME")!;
         _snsClient = new AmazonSimpleNotificationServiceClient();
         _topicArn = Environment.GetEnvironmentVariable("TOPIC_ARN")!;
-        _httpClient = new HttpClient();
+        _httpClient = new HttpClient(new HttpClientXRaySanitizedTracingHandler(new HttpClientHandler()));
         _url = Environment.GetEnvironmentVariable("URL")!;
     }
 
+    [Logging]
+    [Metrics]
+    [Tracing]
     public async Task<APIGatewayHttpApiV2ProxyResponse> Register(APIGatewayHttpApiV2ProxyRequest input, ILambdaContext context)
     {
         var request = JsonSerializer.Deserialize<RegisterTaskRequest>(input.Body)!;
@@ -62,7 +70,7 @@ public partial class Function
                 }
         };
 
-        context.Logger.LogInformation($"Task {taskId} assigned to {worker}");
+        Logger.LogInformation("Task {TaskId} assigned to {Worker}", new[] { taskId.ToString(), worker });
 
         await _dynamoDBClient.PutItemAsync(putItemRequest);
 
@@ -76,6 +84,8 @@ public partial class Function
 
         await _snsClient.PublishAsync(@event);
 
+        Metrics.AddMetric("Tasks", 1, MetricUnit.Count);
+
         return new APIGatewayHttpApiV2ProxyResponse
         {
             Body = body,
@@ -84,6 +94,7 @@ public partial class Function
         };
     }
 
+    [Tracing]
     private async Task<string> GetWorker()
     {
         var response = await _httpClient.GetAsync(_url);
